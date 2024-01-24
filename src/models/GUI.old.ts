@@ -1,10 +1,10 @@
-import { Page, expect } from '@playwright/test';
-import { erc20TokenAbi } from '../constants/abis/ERC20ABI';
-import { ethers } from 'ethers';
-import { findAllowanceSlot, findBalanceSlot, getAllowanceSlot, getBalanceSlot, getAlchemyRpcUrl, getInfuraRpcUrl, getChainstackRpcUrl } from '../utils';
-import { exec } from 'child_process';
-import * as path from 'path';
-import { promises as fs } from 'fs';
+import { Page, expect } from "@playwright/test";
+import { erc20TokenAbi } from "../constants/abis/ERC20ABI";
+import { ethers } from "ethers";
+import { findAllowanceSlot, findBalanceSlot, getAllowanceSlot, getBalanceSlot, getAlchemyRpcUrl, getInfuraRpcUrl } from "../utils";
+import { exec } from "child_process";
+import * as path from "path";
+import { promises as fs} from "fs";
 
 export class GUI {
     // Playwright page object
@@ -12,10 +12,10 @@ export class GUI {
 
     // Mapping of chain IDs to RPC cache .env variables
     readonly rpcCacheEnvVars = {
-        1: 'GUARDIAN_UI_ETHEREUM_RPC_URL',
-        42161: 'GUARDIAN_UI_ARBITRUM_RPC_URL',
-        10: 'GUARDIAN_UI_OPTIMISM_RPC_URL',
-        137: 'GUARDIAN_UI_POLYGON_RPC_URL'
+        1: "GUARDIAN_UI_ETHEREUM_RPC_URL",
+        42161: "GUARDIAN_UI_ARBITRUM_RPC_URL",
+        10: "GUARDIAN_UI_OPTIMISM_RPC_URL",
+        137: "GUARDIAN_UI_POLYGON_RPC_URL"
     };
 
     /**
@@ -44,7 +44,7 @@ export class GUI {
      * @returns The address of the currently injected wallet
      */
     async getWalletAddress(): Promise<string> {
-        return await this.page.evaluate('window.ethereum.signer.address');
+        return await this.page.evaluate("window.ethereum.signer.address");
     }
 
     /**
@@ -54,10 +54,10 @@ export class GUI {
      */
     async getEthBalance(address: string): Promise<string> {
         // Pull provider URL from the page
-        const providerUrl: string = await this.page.evaluate('window.ethereum.provider.connection.url');
+        const providerUrl: string = await this.page.evaluate("window.ethereum.provider.connection.url");
 
         // Pull chain ID from the page
-        const chainId: string = await this.page.evaluate('window.ethereum.chainId');
+        const chainId: string = await this.page.evaluate("window.ethereum.chainId");
 
         // Create provider
         const provider = new ethers.providers.JsonRpcProvider(providerUrl, parseInt(chainId));
@@ -75,10 +75,10 @@ export class GUI {
      */
     async getBalance(token: string, address: string): Promise<string> {
         // Pull provider URL from the page
-        const providerUrl: string = await this.page.evaluate('window.ethereum.provider.connection.url');
+        const providerUrl: string = await this.page.evaluate("window.ethereum.provider.connection.url");
 
         // Pull chain ID from the page
-        const chainId: string = await this.page.evaluate('window.ethereum.chainId');
+        const chainId: string = await this.page.evaluate("window.ethereum.chainId");
 
         // Create provider
         const provider = new ethers.providers.JsonRpcProvider(providerUrl, parseInt(chainId));
@@ -100,10 +100,10 @@ export class GUI {
      */
     async getAllowance(token: string, ownerAddress: string, spenderAddress: string): Promise<string> {
         // Pull provider URL from the page
-        const providerUrl: string = await this.page.evaluate('window.ethereum.provider.connection.url');
+        const providerUrl: string = await this.page.evaluate("window.ethereum.provider.connection.url");
 
         // Pull chain ID from the page
-        const chainId: string = await this.page.evaluate('window.ethereum.chainId');
+        const chainId: string = await this.page.evaluate("window.ethereum.chainId");
 
         // Create provider
         const provider = new ethers.providers.JsonRpcProvider(providerUrl, parseInt(chainId));
@@ -121,47 +121,43 @@ export class GUI {
      * @param chainId - Chain ID to fork
      * @param forkBlockNumber - Block number to fork from (optional)
      */
-    async initializeChain(chainId: number, forkBlockNumber?: number, rpc?: string) {
+    async initializeChain(chainId: number, forkBlockNumber?: number) {
         // If a GuardianUI RPC cache url is provided, use it. Otherwise, if an Alchemy RPC key is provided
-        // use it. Otherwise, if an Infura RPC key is provided use that.
+        // use it. Otherwise, if an Infura RPC key is provided use that. 
         // Otherwise, if an Chainstack RPC key is provided use that. Otherwise throw an error.
         let forkRpc;
-        if (rpc) {
-            forkRpc = rpc;
+        const rpcCacheUrl = this.getCacheUrl(chainId);
+        if (rpcCacheUrl) {
+            forkRpc = rpcCacheUrl;
+        } else if (process.env.GUARDIAN_UI_ALCHEMY_API_KEY) {
+            forkRpc = getAlchemyRpcUrl(chainId, process.env.GUARDIAN_UI_ALCHEMY_API_KEY);
+        } else if (process.env.GUARDIAN_UI_INFURA_API_KEY) {
+            forkRpc = getInfuraRpcUrl(chainId, process.env.GUARDIAN_UI_INFURA_API_KEY);
+        } else if (process.env.GUARDIAN_UI_CHAINSTACK_API_KEY) {
+            forkRpc = getChainstackRpcUrl(chainId, process.env.GUARDIAN_UI_CHAINSTACK_API_KEY);
         } else {
-            const rpcCacheUrl = this.getCacheUrl(chainId);
-            if (rpcCacheUrl) {
-                forkRpc = rpcCacheUrl;
-            } else if (process.env.GUARDIAN_UI_ALCHEMY_API_KEY) {
-                forkRpc = getAlchemyRpcUrl(chainId, process.env.GUARDIAN_UI_ALCHEMY_API_KEY);
-            } else if (process.env.GUARDIAN_UI_INFURA_API_KEY) {
-                forkRpc = getInfuraRpcUrl(chainId, process.env.GUARDIAN_UI_INFURA_API_KEY);
-            } else if (process.env.GUARDIAN_UI_CHAINSTACK_API_KEY) {
-                forkRpc = getChainstackRpcUrl(chainId, process.env.GUARDIAN_UI_CHAINSTACK_API_KEY);
-            } else {
-                throw new Error('No RPC key provided');
-            }
+            throw new Error("No RPC key provided");
         }
 
-        const ANVIL_FLAGS = process.env.GUARDIAN_UI_ANVIL_FLAGS ? process.env.GUARDIAN_UI_ANVIL_FLAGS : '';
+        const ANVIL_FLAGS = process.env.GUARDIAN_UI_ANVIL_FLAGS ? process.env.GUARDIAN_UI_ANVIL_FLAGS : "";
 
         // Create fork in background
         exec(`anvil ${forkBlockNumber ? `--fork-block-number=${forkBlockNumber}` : ``} --fork-url=${forkRpc} ${ANVIL_FLAGS} &`);
 
-        const newProvider = new ethers.providers.JsonRpcProvider('http://127.0.0.1:8545', chainId);
+        const newProvider = new ethers.providers.JsonRpcProvider("http://127.0.0.1:8545", chainId);
 
         let processStarted = false;
         do {
             try {
-                const chain = await newProvider.send('eth_chainId', []);
-                const block = await newProvider.send('eth_blockNumber', []);
+                const chain = await newProvider.send("eth_chainId", []);
+                const block = await newProvider.send("eth_blockNumber", []);
 
-                console.log('Chain ID: ' + chain);
-                console.log('Block number: ' + block);
+                console.log("Chain ID: " + chain);
+                console.log("Block number: " + block);
 
                 processStarted = true;
             } catch (e) {
-                console.log('Waiting for Anvil to start...');
+                console.log("Waiting for Anvil to start...");
                 await new Promise((resolve) => setTimeout(resolve, 1000));
             }
         } while (!processStarted);
@@ -171,17 +167,17 @@ export class GUI {
         const privateKey = ethers.Wallet.createRandom().privateKey;
 
         // Open wallet provider code
-        const parentDir = path.resolve(__dirname, '..');
-        let walletProviderCode = await fs.readFile(`${parentDir}/provider/provider.js`, { encoding: 'utf-8' });
+        const parentDir = path.resolve(__dirname, "..");
+        let walletProviderCode = await fs.readFile(`${parentDir}/provider/provider.js`, ({ encoding: "utf-8" }));
 
         // Replace the placeholder RPC text with the appropriate RPC URL
-        walletProviderCode = walletProviderCode.replace('__GUARDIANUI_MOCK__RPC', 'http://127.0.0.1:8545');
+        walletProviderCode = walletProviderCode.replace("__GUARDIANUI_MOCK__RPC", "http://127.0.0.1:8545");
 
         // Replace the placeholder chain ID text with the appropriate chain ID
-        walletProviderCode = walletProviderCode.replace('__GUARDIANUI_MOCK__CHAIN_ID', chainId.toString());
+        walletProviderCode = walletProviderCode.replace("__GUARDIANUI_MOCK__CHAIN_ID", chainId.toString());
 
         // Replace the placeholder private key text with the generated private key
-        walletProviderCode = walletProviderCode.replace('__GUARDIANUI_MOCK__PRIVATE_KEY', privateKey);
+        walletProviderCode = walletProviderCode.replace("__GUARDIANUI_MOCK__PRIVATE_KEY", privateKey);
 
         // Inject a wallet object to window.ethereum when the page loads
         await this.page.addInitScript(walletProviderCode);
@@ -195,13 +191,13 @@ export class GUI {
      */
     async setAllowance(token: string, spenderAddress: string, amount: any) {
         // Pull provider URL from the page
-        const providerUrl: string = await this.page.evaluate('window.ethereum.provider.connection.url');
+        const providerUrl: string = await this.page.evaluate("window.ethereum.provider.connection.url");
 
         // Pull wallet address from the page
-        const userAddress = await this.page.evaluate('window.ethereum.signer.address');
+        const userAddress = await this.page.evaluate("window.ethereum.signer.address");
 
         // Pull chain ID from the page
-        const chainId: string = await this.page.evaluate('window.ethereum.chainId');
+        const chainId: string = await this.page.evaluate("window.ethereum.chainId");
 
         // Automatically find the allowance storage slot
         const allowanceSlot = await findAllowanceSlot(token, this.page);
@@ -212,11 +208,18 @@ export class GUI {
         // Set the allowance[userAddress][spenderAddress] storage slot to the desired amount on the contract
         const provider = new ethers.providers.JsonRpcProvider(providerUrl, parseInt(chainId));
         const bnAmount = ethers.BigNumber.from(amount);
-        await provider.send('anvil_setStorageAt', [token, userAllowanceSlot, ethers.utils.hexZeroPad(ethers.utils.hexlify(bnAmount), 32)]);
+        await provider.send(
+            "anvil_setStorageAt",
+            [
+                token,
+                userAllowanceSlot,
+                ethers.utils.hexZeroPad(ethers.utils.hexlify(bnAmount), 32)
+            ]
+        );
 
         // Check and report that the allowance was set correctly
         const erc20Contract = new ethers.Contract(token, erc20TokenAbi, provider);
-        console.log('Allowance of ' + userAddress + ' to ' + spenderAddress + ' is now ' + (await erc20Contract.allowance(userAddress, spenderAddress)));
+        console.log("Allowance of " + userAddress + " to " + spenderAddress + " is now " + (await erc20Contract.allowance(userAddress, spenderAddress)));
     }
 
     /**
@@ -226,13 +229,13 @@ export class GUI {
      */
     async setBalance(token: string, amount: any) {
         // Pull provider URL from the page
-        const providerUrl: string = await this.page.evaluate('window.ethereum.provider.connection.url');
-
+        const providerUrl: string = await this.page.evaluate("window.ethereum.provider.connection.url");
+        
         // Pull wallet address from the page
-        const userAddress = await this.page.evaluate('window.ethereum.signer.address');
+        const userAddress = await this.page.evaluate("window.ethereum.signer.address");
 
         // Pull chain ID from the page
-        const chainId: string = await this.page.evaluate('window.ethereum.chainId');
+        const chainId: string = await this.page.evaluate("window.ethereum.chainId");
 
         // Automatically find the balance storage slot
         const balanceSlot = await findBalanceSlot(token, this.page);
@@ -243,11 +246,18 @@ export class GUI {
         // Set the balanceOf[userAddress] storage slot to the desired amount
         const provider = new ethers.providers.JsonRpcProvider(providerUrl, parseInt(chainId));
         const bnAmount = ethers.BigNumber.from(amount);
-        await provider.send('anvil_setStorageAt', [token, userBalanceSlot, ethers.utils.hexZeroPad(ethers.utils.hexlify(bnAmount), 32)]);
+        await provider.send(
+            "anvil_setStorageAt",
+            [
+                token,
+                userBalanceSlot,
+                ethers.utils.hexZeroPad(ethers.utils.hexlify(bnAmount), 32)
+            ]
+        );
 
         // Check and report that the balance was set correctly
         const erc20Contract = new ethers.Contract(token, erc20TokenAbi, provider);
-        console.log('Balance of ' + userAddress + ' is now ' + (await erc20Contract.balanceOf(userAddress)));
+        console.log("Balance of " + userAddress + " is now " + (await erc20Contract.balanceOf(userAddress)));
     }
 
     /**
@@ -256,18 +266,24 @@ export class GUI {
      */
     async setEthBalance(amount: any) {
         // Pull provider URL from the page
-        const providerUrl: string = await this.page.evaluate('window.ethereum.provider.connection.url');
+        const providerUrl: string = await this.page.evaluate("window.ethereum.provider.connection.url");
 
         // Pull wallet address from the page
-        const userAddress = await this.page.evaluate('window.ethereum.signer.address');
-
+        const userAddress = await this.page.evaluate("window.ethereum.signer.address");
+        
         // Pull chain ID from the page
-        const chainId: string = await this.page.evaluate('window.ethereum.chainId');
+        const chainId: string = await this.page.evaluate("window.ethereum.chainId");
 
         // Set the ETH balance of the user to the desired amount
         const provider = new ethers.providers.JsonRpcProvider(providerUrl, parseInt(chainId));
         const bnAmount = ethers.BigNumber.from(amount);
-        await provider.send('anvil_setBalance', [userAddress, ethers.utils.hexlify(bnAmount)]);
+        await provider.send(
+            "anvil_setBalance",
+            [
+                userAddress,
+                ethers.utils.hexlify(bnAmount)
+            ]
+        );
     }
 
     /**
@@ -278,14 +294,21 @@ export class GUI {
      */
     async setContractStorageSlot(contract: string, slot: string, value: string) {
         // Pull provider URL from the page
-        const providerUrl: string = await this.page.evaluate('window.ethereum.provider.connection.url');
+        const providerUrl: string = await this.page.evaluate("window.ethereum.provider.connection.url");
 
         // Pull chain ID from the page
-        const chainId: string = await this.page.evaluate('window.ethereum.chainId');
+        const chainId: string = await this.page.evaluate("window.ethereum.chainId");
 
         // Set the storage slot to the desired value
         const provider = new ethers.providers.JsonRpcProvider(providerUrl, parseInt(chainId));
-        await provider.send('anvil_setStorageAt', [contract, slot, value]);
+        await provider.send(
+            "anvil_setStorageAt",
+            [
+                contract,
+                slot,
+                value
+            ]
+        );
     }
 
     /**
@@ -298,18 +321,18 @@ export class GUI {
         let firstRequestReceived = false;
 
         // Intercept all requests
-        const requestPromise = this.page.waitForRequest(async (request) => {
+        const requestPromise = this.page.waitForRequest(async request => {
             if (firstRequestReceived) return false;
 
-            if (request.url() === 'http://127.0.0.1:8545/' && request.method() === 'POST') {
-                const jsonData = JSON.parse(request.postData() ? request.postData()! : '{}');
+            if (request.url() === "http://127.0.0.1:8545/" && request.method() === "POST") {
+                const jsonData = JSON.parse(request.postData() ? request.postData()! : "{}");
 
                 // Parse the JSON data to get the target contract address and the TX data
-                let targetAddress = '';
-                let txData = '';
-                let approvalAddress = '';
+                let targetAddress = "";
+                let txData = "";
+                let approvalAddress = "";
 
-                if (jsonData.method === 'eth_sendTransaction') {
+                if (jsonData.method === "eth_sendTransaction") {
                     firstRequestReceived = true;
 
                     // Parse the JSON data to get the target contract address and the transaction data
@@ -317,46 +340,54 @@ export class GUI {
                     txData = jsonData.params[0].data;
 
                     // If the transcation data has the ERC20 approval selector, parse the approval address
-                    if (txData.substring(0, 10).toLowerCase() === '0x095ea7b3') {
-                        approvalAddress = '0x' + txData.substring(34, 74);
+                    if (txData.substring(0, 10).toLowerCase() === "0x095ea7b3") {
+                        approvalAddress = "0x" + txData.substring(34, 74);
                     }
 
                     console.log(`Target address is: ${targetAddress}`);
                     console.log(`TX Data is: ${txData}`);
 
                     // Check that the target contract or approval address is the correct contract
-                    if (approvalAddress != '') {
-                        expect(approvalAddress.toLowerCase()).toBe(targetContract.toLowerCase());
+                    if (approvalAddress != "") {
+                        expect(
+                            approvalAddress.toLowerCase()
+                        ).toBe(targetContract.toLowerCase());
                         await this.page.waitForTimeout(2000);
                         return true;
                     } else {
-                        expect(targetAddress.toLowerCase()).toBe(targetContract.toLowerCase());
+                        expect(
+                            targetAddress.toLowerCase()
+                        ).toBe(targetContract.toLowerCase());
                         await this.page.waitForTimeout(2000);
                         return true;
                     }
-                } else if (jsonData.method === 'eth_sendRawTransaction') {
+                } else if (jsonData.method === "eth_sendRawTransaction") {
                     firstRequestReceived = true;
 
                     // Parse the JSON data to get the target contract address and the transaction data
                     const tx = ethers.utils.parseTransaction(jsonData.params[0]);
-                    targetAddress = tx.to ? tx.to : '';
+                    targetAddress = tx.to ? tx.to : "";
                     txData = tx.data;
 
                     // If the transcation data has the ERC20 approval selector, parse the approval address
-                    if (txData.substring(0, 10).toLowerCase() === '0x095ea7b3') {
-                        approvalAddress = '0x' + txData.substring(34, 74);
+                    if (txData.substring(0, 10).toLowerCase() === "0x095ea7b3") {
+                        approvalAddress = "0x" + txData.substring(34, 74);
                     }
 
                     console.log(`Target address is: ${targetAddress}`);
                     console.log(`TX Data is: ${txData}`);
 
                     // Check that the target contract or approval address is the correct contract
-                    if (approvalAddress != '') {
-                        expect(approvalAddress.toLowerCase()).toBe(targetContract.toLowerCase());
+                    if (approvalAddress != "") {
+                        expect(
+                            approvalAddress.toLowerCase()
+                        ).toBe(targetContract.toLowerCase());
                         await this.page.waitForTimeout(2000);
                         return true;
                     } else {
-                        expect(targetAddress.toLowerCase()).toBe(targetContract.toLowerCase());
+                        expect(
+                            targetAddress.toLowerCase()
+                        ).toBe(targetContract.toLowerCase());
                         await this.page.waitForTimeout(2000);
                         return true;
                     }
